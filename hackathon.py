@@ -151,7 +151,34 @@ def analyze_symptoms(text: str):
         return {"status": "Consultation Required", "priority": "Yellow - Standard", "dept": "General Medicine", "risk": "Moderate"}
     else:
         return {"status": "Pending Doctor Review", "priority": "Yellow - Standard", "dept": "General Medicine", "risk": "Unknown"}
+def analyze_symptoms(text: str):
+    text_lower = text.lower()
+    
+    # Base analysis
+    if any(kw in text_lower for kw in ["fine", "good", "nothing", "well", "thik"]):
+        status, priority, dept, risk = "No Intervention", "Green - Safe", "N/A - Rest", "Low"
+        dosha = "Sama (Balanced)"
+    elif any(kw in text_lower for kw in ["chest", "heart", "breath", "stroke", "severe", "blood", "pain"]):
+        status, priority, dept, risk = "Immediate Triage", "Red - Emergency", "Cardiology / ER", "High"
+        dosha = "Pitta-Vata Aggravation"
+    else:
+        status, priority, dept, risk = "Consultation Required", "Yellow - Standard", "General Medicine", "Moderate"
+        dosha = "Vata Imbalance"
 
+    return {
+        "status": status,
+        "priority": priority,
+        "dept": dept,
+        "risk": risk,
+        "ayush_dosha_profile": dosha,
+        "fhir_resource": {
+            "resourceType": "Observation",
+            "status": "final",
+            "category": "symptom-intake",
+            "code": {"text": text},
+            "interpretation": priority
+        }
+    }
 # =====================================================================
 # API ENDPOINTS
 # =====================================================================
@@ -1242,7 +1269,15 @@ async def index():
         document.getElementById('pd-date').innerText = c.date_str;
         document.getElementById('pd-trans').innerText = c.transcript;
         document.getElementById('pd-ai').innerHTML = Object.entries(c.ai_report).map(([k,v]) => `<div><b class="capitalize">${k}:</b> ${v}</div>`).join('');
-        
+        // Add inside openPatientCaseDetail(c)
+if(c.ai_report && c.ai_report.fhir_resource) {
+  document.getElementById('pd-ai').innerHTML += `
+    <div class="mt-2 border-t pt-2">
+      <button onclick="this.nextElementSibling.classList.toggle('hidden')" class="text-[10px] bg-slate-800 text-white px-2 py-1 rounded font-mono">View Raw FHIR JSON</button>
+      <pre class="hidden bg-slate-900 text-green-400 p-2 text-[10px] rounded mt-1 overflow-x-auto">${JSON.stringify(c.ai_report.fhir_resource, null, 2)}</pre>
+    </div>
+  `;
+}
         if(c.status === 'completed') {
             document.getElementById('pd-notes').innerText = c.prescription.notes;
             document.getElementById('pd-meds').innerHTML = c.prescription.medicines.map(m => `<li>${m}</li>`).join('');
